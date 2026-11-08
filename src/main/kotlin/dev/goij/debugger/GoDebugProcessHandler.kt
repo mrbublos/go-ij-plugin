@@ -118,6 +118,10 @@ class GoDebugProcessHandler(
                                     events.stopped(event)
                                 }
 
+                                override fun continued() {
+                                    events.continued()
+                                }
+
                                 override fun exited(code: Int) {
                                     events.exited(code)
                                     finish(code)

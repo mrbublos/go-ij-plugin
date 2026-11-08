@@ -15,6 +15,8 @@ interface IDebugEvents {
 
     fun exited(code: Int) {}
 
+    fun continued() {}
+
     fun failed(error: Throwable) {}
 
     fun breakpoints(path: String, lines: List<Int>, results: Array<Breakpoint>) {}
@@ -38,6 +40,10 @@ class DapConnection(private val socket: Socket, private val events: IDebugEvents
 
             override fun stopped(args: StoppedEventArguments) {
                 events.stopped(args)
+            }
+
+            override fun continued(args: ContinuedEventArguments) {
+                events.continued()
             }
 
             override fun exited(args: ExitedEventArguments) {
