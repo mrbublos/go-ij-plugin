@@ -32,3 +32,6 @@ and successful inspection stderr remains diagnostic. Missing directory validatio
 is covered. `./gradlew --offline -PlocalIde="/Applications/IntelliJ IDEA.app/Contents"
 spotlessApply check` passed (14 platform tests), as did `git diff --check`.
 Interactive editor walkthrough and full plugin packaging remain final-spec checks.
+
+After merging ticket 03, `spotlessApply check` passed again (18 platform tests),
+including explicit context-reuse preservation of all custom launch settings.

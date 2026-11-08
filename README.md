@@ -6,7 +6,9 @@ A personal-use plugin for running and debugging local Go main packages without J
 
 The first slice implements saved Go Application configurations, Go toolchain
 selection, whole-package builds, console output, exit codes, and Stop/Rerun.
-Context actions and debugging are tracked in later tickets.
+Context Run actions are available for Go files and package directories, and saved
+launch options customize arguments, environment, build flags, and working directory.
+Debugging is tracked in later tickets.
 
 ## Start here
 
@@ -72,3 +74,18 @@ passed on macOS Apple Silicon. Plugin Verifier reports compatibility with
 IU-262.10315.125 and two deprecated `DefaultProgramRunner` references. The automated
 smoke restores a saved configuration and runs it with JetBrains' Go plugin absent;
 it does not establish an interactive UI walkthrough or real-project acceptance.
+
+## Running from context
+
+Right-click a `.go` file in the editor/project view or a directory containing Go
+source and choose **Run**. A file targets its containing package, including sibling
+files. A directory targets only itself. Matching saved Go Application configurations
+are reused, preserving their custom settings; otherwise the package directory name
+becomes the configuration name. Package inspection and compilation happen in the
+background after Run; a library package or build failure appears in the Run console.
+Debug is unavailable until the debugger slice is installed.
+
+The context platform tests exercise the registered producer for files/directories,
+saved configuration reuse, unrelated selections, and a real Go context launch with
+sibling files and library rejection. This is an automated sandbox equivalent, not
+an interactive context-menu walkthrough.
