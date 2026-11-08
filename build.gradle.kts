@@ -8,7 +8,7 @@ plugins {
 
 group = "dev.goij"
 
-version = "0.1.0"
+version = providers.gradleProperty("pluginVersion").getOrElse("0.1.0")
 
 repositories {
     mavenCentral()

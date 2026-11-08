@@ -5,6 +5,9 @@ plugin targets IntelliJ IDEA 2026.2.2 on macOS Apple Silicon.
 
 ## Install and prepare
 
+Download a ZIP from [GitHub Releases](https://github.com/mrbublos/go-ij-plugin/releases),
+or build one locally as described below.
+
 Build with `./gradlew buildPlugin` and install the ZIP from `build/distributions`
 using **Settings > Plugins > gear > Install Plugin from Disk**, then restart IDEA.
 JetBrains' Go plugin is not required and may remain disabled.
@@ -96,6 +99,23 @@ tests cover ordering, rejected requests and unexpected disconnects. No test requ
 JetBrains' Go plugin. Before declaring a build installable, build the ZIP, run the
 compatibility verifier and check the target sandbox with that plugin absent. Report
 headless native-platform checks separately from interactive and real-project checks.
+
+## Automatic releases
+
+The [release workflow](.github/workflows/release.yml) runs on pushes to `main`
+that change source/tests, Gradle build files or the workflow itself. Documentation-only
+changes do not publish a release. It can also be run manually from Actions on `main`.
+
+On macOS ARM, it installs Java 25, Go 1.25.1 and Delve 1.25.2, then runs `check`,
+`buildPlugin` and `verifyPlugin`. Only successful checks publish the ZIP to GitHub
+Releases using the built-in `GITHUB_TOKEN`; no personal token is required. Repository
+or organization policy must allow the workflow's `contents: write` permission.
+
+Each build uses plugin version `0.1.<workflow run number>` and a `build-<commit SHA>`
+release tag pointing to the exact tested commit. Reruns leave an existing release
+for that commit unchanged. Local builds retain version `0.1.0` unless supplied
+`-PpluginVersion=...`. Releases are uploaded automatically once the workflow is
+committed and pushed to GitHub; adding the file locally does not publish anything.
 
 ## Recorded validation
 

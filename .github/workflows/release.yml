@@ -1,0 +1,64 @@
+name: Release plugin
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - '*.gradle.kts'
+      - 'gradle.properties'
+      - 'gradle/**'
+      - 'gradlew'
+      - 'gradlew.bat'
+      - '.github/workflows/release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: macos-15
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    env:
+      PLUGIN_VERSION: 0.1.${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.25.1'
+          cache: false
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Install test debugger
+        run: |
+          go install github.com/go-delve/delve/cmd/dlv@v1.25.2
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Test, package, and verify
+        run: ./gradlew --no-daemon check buildPlugin verifyPlugin "-PpluginVersion=$PLUGIN_VERSION"
+      - name: Publish release ZIP
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          tag="build-$GITHUB_SHA"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release already exists for $GITHUB_SHA; leaving it unchanged."
+            exit 0
+          fi
+          gh release create "$tag" "build/distributions/go-ij-plugin-$PLUGIN_VERSION.zip" \
+            --target "$GITHUB_SHA" \
+            --title "Go plugin $PLUGIN_VERSION" \
+            --generate-notes
