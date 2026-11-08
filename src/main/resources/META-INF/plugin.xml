@@ -7,6 +7,8 @@
   <extensions defaultExtensionNs="com.intellij">
     <runConfigurationProducer implementation="dev.goij.configuration.GoConfigurationProducer"/>
     <programRunner implementation="dev.goij.configuration.GoRunRunner"/>
+    <programRunner implementation="dev.goij.configuration.GoDebugRunner"/>
+    <xdebugger.breakpointType implementation="dev.goij.debugger.GoLineBreakpointType"/>
     <configurationType implementation="dev.goij.configuration.GoConfigurationType"/>
     <applicationConfigurable parentId="tools" id="dev.goij.toolchain" displayName="Go Toolchain" instance="dev.goij.toolchain.GoToolchainConfigurable"/>
   </extensions>

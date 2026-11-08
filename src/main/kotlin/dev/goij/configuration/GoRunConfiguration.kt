@@ -19,6 +19,9 @@ import com.intellij.openapi.options.SettingsEditor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.util.execution.ParametersListUtil
+import dev.goij.debugger.GoDebugInput
+import dev.goij.debugger.GoDebugProcessHandler
+import dev.goij.debugger.IDebugEvents
 import dev.goij.execution.GoRunInput
 import dev.goij.execution.GoRunProcessHandler
 import dev.goij.toolchain.GoToolchainSettings
@@ -96,6 +99,37 @@ class GoRunConfiguration(project: Project, factory: ConfigurationFactory, name: 
                     ParametersListUtil.parse(buildFlags),
                     environment.toMap(),
                 )
+            )
+            .also { handler ->
+                val lifetime = Disposable {
+                    if (!handler.isProcessTerminated) handler.destroyProcess()
+                }
+                Disposer.register(project, lifetime)
+                handler.addProcessListener(
+                    object : ProcessListener {
+                        override fun processTerminated(event: ProcessEvent) {
+                            Disposer.dispose(lifetime)
+                        }
+                    }
+                )
+            }
+
+    fun launchDebug(
+        events: IDebugEvents,
+        breakpoints: Map<String, List<Int>>,
+    ): GoDebugProcessHandler =
+        GoDebugProcessHandler(
+                GoDebugInput(
+                    packageDirectory,
+                    GoToolchainSettings.getInstance().state.goExecutable,
+                    GoToolchainSettings.getInstance().state.delveExecutable,
+                    workingDirectory.ifBlank { packageDirectory },
+                    ParametersListUtil.parse(programArguments),
+                    buildFlags,
+                    environment.toMap(),
+                ),
+                events,
+                breakpoints,
             )
             .also { handler ->
                 val lifetime = Disposable {
