@@ -8,7 +8,8 @@ The first slice implements saved Go Application configurations, Go toolchain
 selection, whole-package builds, console output, exit codes, and Stop/Rerun.
 Context Run actions are available for Go files and package directories, and saved
 launch options customize arguments, environment, build flags, and working directory.
-Debugging is tracked in later tickets.
+Debug launches use installed Delve, native Go line breakpoints, source suspension,
+resume, and Stop/Rerun. Full inspection and stepping remain in ticket 05.
 
 ## Start here
 
@@ -37,7 +38,8 @@ The default SDK is IntelliJ IDEA 2026.2.2. To use an installed copy, append
 
 The tests launch small Go fixtures; Go must be installed and discoverable. Build
 cancellation tests use a temporary fake executable at the external tool boundary.
-The tests do not require Delve or the JetBrains Go plugin. Report real-tool and
+Debugger tests require installed Delve and exercise its external DAP protocol and
+the registered native Debug runner. No test requires the JetBrains Go plugin. Report real-tool and
 interactive sandbox checks separately from deterministic failure/persistence tests.
 
 ## Running a saved configuration
@@ -83,9 +85,29 @@ files. A directory targets only itself. Matching saved Go Application configurat
 are reused, preserving their custom settings; otherwise the package directory name
 becomes the configuration name. Package inspection and compilation happen in the
 background after Run; a library package or build failure appears in the Run console.
-Debug is unavailable until the debugger slice is installed.
+Choose **Debug** to launch the same configuration with Delve.
 
 The context platform tests exercise the registered producer for files/directories,
 saved configuration reuse, unrelated selections, and a real Go context launch with
 sibling files and library rejection. This is an automated sandbox equivalent, not
 an interactive context-menu walkthrough.
+
+## Debugging to a breakpoint
+
+Install Delve separately, then optionally set **Delve executable** in **Settings >
+Tools > Go Toolchain**. A blank path searches PATH, Homebrew locations, and `~/go/bin`.
+Debug requires Go and Delve; an absent or invalid Delve does not prevent Run.
+Click the gutter in a `.go` file to add a line breakpoint, then Debug a saved or
+context-created Go Application configuration. The native Debug window displays
+Delve's breakpoint verification/rejection and the suspended source position.
+Resume, Stop, and Rerun use the native debugger controls. Debug applies the saved
+package, arguments, environment, working directory, and build flags. Build and
+adapter errors appear in its console. Only noninteractive debug applications are
+supported; debug console stdin is outside v1 scope.
+
+Each debug session owns one loopback DAP server, connection, and temporary build
+output. Startup failure, Stop, normal exit, and project disposal clean them up.
+Protocol tests cover delayed launch replies, initial and updated breakpoints,
+rejected requests, disconnects, and idempotent connection cleanup. Real Delve
+checks are recorded in ticket 04; automated native-runner tests are headless and
+do not substitute for an interactive Debug-window walkthrough.
