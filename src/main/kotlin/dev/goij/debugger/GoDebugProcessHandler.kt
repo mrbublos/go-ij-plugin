@@ -46,6 +46,34 @@ class GoDebugProcessHandler(
             java.lang.Thread.ofVirtual().name("go-debug-start").start { launch() }
     }
 
+    private fun inspectPackage(go: String) {
+        val process =
+            synchronized(lock) {
+                check(!stopped.get()) { "Debug session stopped." }
+                ProcessBuilder(
+                        GoTools.packageInspectionCommand(
+                            go,
+                            com.intellij.util.execution.ParametersListUtil.parse(input.buildFlags),
+                        )
+                    )
+                    .directory(Path.of(input.packageDirectory).toFile())
+                    .apply { environment().putAll(input.environment) }
+                    .start()
+                    .also { child = it }
+            }
+        val errors =
+            java.lang.Thread.ofVirtual().name("go-debug-inspect-errors").start {
+                process.errorStream.bufferedReader().useLines { lines ->
+                    lines.forEach { output("$it\n") }
+                }
+            }
+        val packageName = process.inputStream.bufferedReader().use { it.readText() }
+        val exit = process.waitFor()
+        errors.join()
+        synchronized(lock) { if (child === process) child = null }
+        GoTools.requireMainPackage(exit, packageName, Path.of(input.packageDirectory))
+    }
+
     private fun launch() {
         try {
             val go = GoTools.findGo(input.goExecutable)
@@ -56,6 +84,7 @@ class GoDebugProcessHandler(
             require(Files.isDirectory(Path.of(input.workingDirectory))) {
                 "Working directory must be an existing directory: ${input.workingDirectory}"
             }
+            inspectPackage(go)
             val launchEnvironment = input.environment.toMutableMap()
             val process =
                 synchronized(lock) {
