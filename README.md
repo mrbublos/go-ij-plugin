@@ -1,113 +1,113 @@
 # Standalone Go Run and Debug for IntelliJ IDEA
 
-A personal-use plugin for running and debugging local Go main packages without JetBrains' Go plugin. The initial target is macOS Apple Silicon.
+Run and debug local Go main packages without JetBrains' Go plugin. This personal-use
+plugin targets IntelliJ IDEA 2026.2.2 on macOS Apple Silicon.
 
-## Current state
+## Install and prepare
 
-The first slice implements saved Go Application configurations, Go toolchain
-selection, whole-package builds, console output, exit codes, and Stop/Rerun.
-Context Run actions are available for Go files and package directories, and saved
-launch options customize arguments, environment, build flags, and working directory.
-Debug launches use installed Delve, native Go line breakpoints, source suspension,
-resume, and Stop/Rerun. Full inspection and stepping remain in ticket 05.
+Build with `./gradlew buildPlugin` and install the ZIP from `build/distributions`
+using **Settings > Plugins > gear > Install Plugin from Disk**, then restart IDEA.
+JetBrains' Go plugin is not required and may remain disabled.
+Install Go and Delve yourself. Prepare generated code, frontend assets and any
+supporting services before launching; the plugin does not orchestrate them.
 
-## Start here
+In **Settings > Tools > Go Toolchain**, optionally set **Go executable** and
+**Delve executable** to absolute executable paths. Blank fields search PATH and
+common macOS locations (`/opt/homebrew/bin`, `/usr/local/bin`, `/usr/local/go/bin`
+for Go, and `~/go/bin` for Delve). Explicit paths take precedence; invalid paths
+produce setup guidance rather than silently falling back. Run requires only Go;
+Debug requires both tools.
 
-- [Feature specification](.scratch/go-run-debug/spec.md): behavior, implementation targets, acceptance scenarios, and exclusions.
-- [First implementation ticket](.scratch/go-run-debug/issues/01-run-saved-configuration.md): bootstrap and a saved-configuration run.
-- [Architecture](docs/architecture.md): code organization and engineering rules.
-- [Glossary](GLOSSARY.md) and [architecture decision](docs/adr/0001-single-module.md).
-- [Contributor instructions](AGENTS.md) and [local issue workflow](docs/agents/issue-tracker.md).
+## Run a package
+
+In **Run > Edit Configurations**, add **Go Application**:
+
+| Field | Meaning |
+| --- | --- |
+| Main package directory | Directory containing the whole executable `package main` |
+| Working directory | Runtime directory; blank defaults to the package directory |
+| Program arguments | Arguments using IntelliJ quoting, such as `one "two words"` |
+| Environment overrides | Values added to or replacing the inherited environment |
+| Build flags | Go build options such as `-tags special` |
+
+Build flags and environment also apply to background package inspection. Builds
+always target the selected package even when the working directory differs. Run
+builds a temporary executable and launches it directly. Compiler errors, program
+output and exit status appear in the Run console. Stop cancels build or execution;
+Rerun starts a fresh session. Closing the project cleans up owned resources.
+
+Right-click a `.go` file in the editor/project view or its package directory and
+choose **Run** or **Debug**. Files launch their containing package, including sibling
+files; directories launch only themselves. Existing matching Go Application
+configurations are reused with their custom options. Otherwise the package directory
+name becomes the configuration name. Library packages are rejected visibly after
+background inspection; the plugin does not search for a different main package.
+
+## Debug a package
+
+Add ordinary line breakpoints in `.go` file gutters, then Debug a saved or context
+configuration. The native Debug window shows verification feedback, the suspended
+source position, goroutines, stack frames, scopes and expandable variables. Use its
+Pause, Resume, Step Into, Step Over, Step Out, Stop and Rerun controls. Unsupported
+breakpoint locations are reported as unverified. Adapter/build failures appear in
+the console. Each session owns a loopback Delve DAP server, connection and temporary
+build output; normal exit, failure, Stop and project closure release them.
+
+If macOS rejects debugging, inspect the Debug console first. Check that the selected
+Delve executable runs from a terminal and matches the machine architecture. Review
+any macOS developer-tool authorization prompt and **System Settings > Privacy &
+Security > Developer Tools** where available, then restart the IDE after granting
+access. Follow the installed Delve distribution's signing/setup guidance if the
+error names signing or authorization; do not disable system security protections.
+
+## Limits
+
+Version 1 supports local noninteractive applications. It does not implement Go tests
+or coverage, remote/Docker debugging, expression evaluation, conditional breakpoints,
+hit counts, logpoints, interactive debug stdin, Go editing features, automatic tool
+installation or project/service preparation. No Marketplace publishing or support
+commitment for other IDE versions/platforms is included. The developer's real project
+still requires its own acceptance test.
 
 ## Development and verification
 
-Use Java 25 (the target IDE's bundled JBR also works). Gradle's wrapper pins 9.1.0.
-The default SDK is IntelliJ IDEA 2026.2.2. To use an installed copy, append
-`-PlocalIde="/Applications/IntelliJ IDEA.app"` to each command.
+Use Java 25 (the target IDE's bundled JBR works). The wrapper pins Gradle 9.1.0;
+the default SDK is IntelliJ IDEA 2026.2.2. Append
+`-PlocalIde="/Applications/IntelliJ IDEA.app"` to use an installed SDK.
 
 ```sh
 ./gradlew spotlessCheck             # Formatting verification
 ./gradlew spotlessApply             # Apply the pinned formatter
 ./gradlew compileKotlin compileTestKotlin
-./gradlew test                      # Configuration integration tests; requires Go
+./gradlew test                      # Requires installed Go and Delve
+./gradlew check                     # Compilation, formatting and tests
 ./gradlew runIde                    # Isolated development sandbox
 ./gradlew buildPlugin               # ZIP under build/distributions
-./gradlew verifyPlugin              # Compatibility with the selected target IDE
-./gradlew check                     # Compilation, formatting, and tests
+./gradlew verifyPlugin              # Compatibility with selected target IDE
 ```
 
-The tests launch small Go fixtures; Go must be installed and discoverable. Build
-cancellation tests use a temporary fake executable at the external tool boundary.
-Debugger tests require installed Delve and exercise its external DAP protocol and
-the registered native Debug runner. No test requires the JetBrains Go plugin. Report real-tool and
-interactive sandbox checks separately from deterministic failure/persistence tests.
+Tests use small Go fixtures and registered platform configurations/runners. They
+cover persistence, context production/reuse, custom launch options, missing tools,
+library/build failures, output and exit status, stop/rerun, project disposal, native
+breakpoints, goroutines, frames, variables and stepping. External DAP fake-server
+tests cover ordering, rejected requests and unexpected disconnects. No test requires
+JetBrains' Go plugin. Before declaring a build installable, build the ZIP, run the
+compatibility verifier and check the target sandbox with that plugin absent. Report
+headless native-platform checks separately from interactive and real-project checks.
 
-## Running a saved configuration
+## Recorded validation
 
-In **Settings > Tools > Go Toolchain**, optionally set the Go executable path.
-A blank path detects Go from PATH, `/opt/homebrew/bin`, `/usr/local/bin`, or
-`/usr/local/go/bin`. An explicit path takes precedence and is never silently
-replaced if invalid.
+On 2026-11-08, all 32 tests, formatting, compilation, ZIP creation and offline
+Plugin Verifier passed on macOS Apple Silicon with Go 1.25.1, Delve 1.25.2 and
+IDEA IU-262.10315.125. The ZIP plugin JAR matches the headless sandbox JAR byte for
+byte; the platform smoke asserts JetBrains' Go plugin absent or disabled. Verifier
+reports compatibility with two deprecated Run-runner references and two experimental
+API usages; recheck these before updating the IDE target. See the release ticket
+for commands and artifact hashes. Interactive UI/install-dialog and developer
+real-project acceptance were not performed.
 
-In **Run > Edit Configurations**, add **Go Application**, choose the directory of
-a main package, and run it. The entire package is built into a temporary executable;
-its directory is the default working directory. Set **Working directory** to run
-elsewhere (blank uses the package directory), **Program arguments** for arguments
-using IntelliJ quoting conventions, **Build flags** for Go build options such as
-`-tags special`, and **Environment overrides** for variables added to the inherited
-environment. Build flags and environment also apply to package inspection; builds
-always select the package directory even when the runtime directory differs.
-All these options are saved with the configuration. Compiler errors and application output
-appear in the Run console. Stop cancels builds or execution; Rerun builds a fresh
-executable. Session temporary executables are removed on termination.
+## Project documentation
 
-Before declaring a build installable, build its ZIP and run target-IDE compatibility
-verification. For a sandbox smoke test, disable JetBrains' Go plugin, open the
-`src/test/testData/hello` fixture, save a Go Application configuration, Run it,
-and confirm `whole package works` plus exit 0. Repeat after restarting the sandbox.
-Test Stop/Rerun and project closure with a long-running program. The user's actual
-Go project remains a separate acceptance test.
-
-## Validation recorded for the first slice
-
-Compilation, formatting, all 10 platform configuration tests with real Go,
-headless sandbox plugin loading, ZIP creation, and offline target-IDE verification
-passed on macOS Apple Silicon. Plugin Verifier reports compatibility with
-IU-262.10315.125 and two deprecated `DefaultProgramRunner` references. The automated
-smoke restores a saved configuration and runs it with JetBrains' Go plugin absent;
-it does not establish an interactive UI walkthrough or real-project acceptance.
-
-## Running from context
-
-Right-click a `.go` file in the editor/project view or a directory containing Go
-source and choose **Run**. A file targets its containing package, including sibling
-files. A directory targets only itself. Matching saved Go Application configurations
-are reused, preserving their custom settings; otherwise the package directory name
-becomes the configuration name. Package inspection and compilation happen in the
-background after Run; a library package or build failure appears in the Run console.
-Choose **Debug** to launch the same configuration with Delve.
-
-The context platform tests exercise the registered producer for files/directories,
-saved configuration reuse, unrelated selections, and a real Go context launch with
-sibling files and library rejection. This is an automated sandbox equivalent, not
-an interactive context-menu walkthrough.
-
-## Debugging to a breakpoint
-
-Install Delve separately, then optionally set **Delve executable** in **Settings >
-Tools > Go Toolchain**. A blank path searches PATH, Homebrew locations, and `~/go/bin`.
-Debug requires Go and Delve; an absent or invalid Delve does not prevent Run.
-Click the gutter in a `.go` file to add a line breakpoint, then Debug a saved or
-context-created Go Application configuration. The native Debug window displays
-Delve's breakpoint verification/rejection and the suspended source position.
-Resume, Stop, and Rerun use the native debugger controls. Debug applies the saved
-package, arguments, environment, working directory, and build flags. Build and
-adapter errors appear in its console. Only noninteractive debug applications are
-supported; debug console stdin is outside v1 scope.
-
-Each debug session owns one loopback DAP server, connection, and temporary build
-output. Startup failure, Stop, normal exit, and project disposal clean them up.
-Protocol tests cover delayed launch replies, initial and updated breakpoints,
-rejected requests, disconnects, and idempotent connection cleanup. Real Delve
-checks are recorded in ticket 04; automated native-runner tests are headless and
-do not substitute for an interactive Debug-window walkthrough.
+- [Feature specification](.scratch/go-run-debug/spec.md) and [release ticket](.scratch/go-run-debug/issues/06-context-debug-release.md): behavior and exact validation evidence.
+- [Architecture](docs/architecture.md), [glossary](GLOSSARY.md), and [ADRs](docs/adr/0001-single-module.md).
+- [Contributor instructions](AGENTS.md) and [local issue workflow](docs/agents/issue-tracker.md).

@@ -44,16 +44,10 @@ class GoRunProcessHandler(private val input: GoRunInput) : ProcessHandler() {
             }
             val packageName = StringBuilder()
             val validation =
-                execute(
-                    listOf(go, "list") + input.buildFlags + listOf("-f", "{{.Name}}", "."),
-                    directory,
-                ) { text ->
+                execute(GoTools.packageInspectionCommand(go, input.buildFlags), directory) { text ->
                     packageName.append(text)
                 }
-            require(validation == 0) { "Could not inspect Go package:\n$packageName" }
-            require(packageName.toString().trim() == "main") {
-                "Selected directory is not a Go main package: $directory"
-            }
+            GoTools.requireMainPackage(validation, packageName.toString(), directory)
             temporary = Files.createTempDirectory("go-ij-run-")
             val executable = temporary.resolve("application")
             val build =
