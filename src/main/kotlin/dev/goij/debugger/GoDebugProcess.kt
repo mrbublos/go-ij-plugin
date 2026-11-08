@@ -3,7 +3,6 @@ package dev.goij.debugger
 import com.intellij.execution.process.ProcessHandler
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.fileTypes.PlainTextFileType
-import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.xdebugger.*
 import com.intellij.xdebugger.breakpoints.*
 import com.intellij.xdebugger.evaluation.XDebuggerEditorsProvider
@@ -17,8 +16,9 @@ class GoDebugProcess(
     launch: (IDebugEvents, Map<String, List<Int>>) -> GoDebugProcessHandler,
 ) : XDebugProcess(session) {
     private val breakpoints = linkedSetOf<XLineBreakpoint<GoBreakpointProperties>>()
-    private var threadId = 0
+    private var suspension: GoSuspension? = null
     private var generation = 0
+    private var commandTail = CompletableFuture.completedFuture(Unit)
     private val handler: GoDebugProcessHandler
 
     init {
@@ -37,6 +37,21 @@ class GoDebugProcess(
                 object : IDebugEvents {
                     override fun stopped(event: StoppedEventArguments) {
                         onStopped(event)
+                    }
+
+                    override fun continued() {
+                        ui {
+                            generation++
+                            suspension = null
+                            session.sessionResumed()
+                        }
+                    }
+
+                    override fun exited(code: Int) {
+                        ui {
+                            generation++
+                            suspension = null
+                        }
                     }
 
                     override fun failed(error: Throwable) {
@@ -115,76 +130,116 @@ class GoDebugProcess(
         handler.updateBreakpoints(path, lines)
     }
 
+    override fun sessionInitialized() {
+        session.setPauseActionSupported(true)
+        session.addSessionListener(
+            object : XDebugSessionListener {
+                override fun stackFrameChanged() {
+                    suspension?.selectionChanged(session.currentStackFrame)
+                }
+
+                override fun sessionStopped() {
+                    generation++
+                    suspension = null
+                }
+            }
+        )
+    }
+
     private fun onStopped(event: StoppedEventArguments) {
         ui {
-            threadId = event.threadId ?: 1
-            val current = ++generation
-            val stoppedThread = threadId
             val dap = handler.connection ?: return@ui
-            request({
-                dap.server.stackTrace(
-                    StackTraceArguments().apply {
-                        threadId = stoppedThread
-                        startFrame = 0
-                        levels = 1
-                    }
-                )
-            }) { response ->
-                if (current != generation) return@request
-                val frame = response.stackFrames.firstOrNull()
-                val source =
-                    frame?.source?.path?.let { LocalFileSystem.getInstance().findFileByPath(it) }
-                val position =
-                    source?.let {
-                        XDebuggerUtil.getInstance()
-                            .createPosition(it, (frame.line - 1).coerceAtLeast(0))
-                    }
-                val stackFrame =
-                    object : XStackFrame() {
-                        override fun getSourcePosition() = position
-                    }
-                val stack =
-                    object : XExecutionStack("Goroutine $threadId") {
-                        override fun getTopFrame() = stackFrame
-
-                        override fun computeStackFrames(
-                            firstFrameIndex: Int,
-                            container: XStackFrameContainer,
-                        ) {
-                            container.addStackFrames(
-                                if (firstFrameIndex == 0) listOf(stackFrame) else emptyList(),
-                                true,
-                            )
-                        }
-                    }
-                session.positionReached(
-                    object : XSuspendContext() {
-                        override fun getActiveExecutionStack() = stack
-                    }
-                )
-            }
+            val current = ++generation
+            val context =
+                GoSuspension(dap.server, event.threadId ?: 1) {
+                    current == generation &&
+                        !handler.isProcessTerminating &&
+                        !handler.isProcessTerminated &&
+                        !session.project.isDisposed
+                }
+            suspension = context
+            context.loadTopFrame(
+                { session.positionReached(context) },
+                {
+                    session.reportError(it)
+                    session.positionReached(context)
+                },
+            )
         }
     }
 
-    override fun resume(context: XSuspendContext?) {
+    override fun resume(context: XSuspendContext?) =
+        control(context) { server, id ->
+            server.continue_(ContinueArguments().apply { threadId = id })
+        }
+
+    override fun startStepInto(context: XSuspendContext?) =
+        control(context) { server, id -> server.stepIn(StepInArguments().apply { threadId = id }) }
+
+    override fun startStepOver(context: XSuspendContext?) =
+        control(context) { server, id -> server.next(NextArguments().apply { threadId = id }) }
+
+    override fun startStepOut(context: XSuspendContext?) =
+        control(context) { server, id ->
+            server.stepOut(StepOutArguments().apply { threadId = id })
+        }
+
+    override fun startPausing() {
         val dap = handler.connection ?: return
+        val current = generation
+        request({ dap.server.pause(PauseArguments().apply { threadId = 0 }) }, current) {}
+    }
+
+    private fun control(
+        context: XSuspendContext?,
+        operation:
+            (org.eclipse.lsp4j.debug.services.IDebugProtocolServer, Int) -> CompletableFuture<*>,
+    ) {
+        val dap = handler.connection ?: return
+        val stopped = context as? GoSuspension ?: suspension ?: return
+        val id = stopped.selectedThread
         val current = ++generation
-        val resumedThread = threadId
-        request({ dap.server.continue_(ContinueArguments().apply { threadId = resumedThread }) }) {
-            if (current == generation) session.sessionResumed()
+        suspension = null
+        request(
+            { operation(dap.server, id) },
+            current,
+            { onStopped(StoppedEventArguments().apply { threadId = id }) },
+        ) {
+            session.sessionResumed()
         }
     }
 
     override fun stop() {
         generation++
+        suspension = null
         handler.destroyProcess()
     }
 
-    private fun <T> request(operation: () -> CompletableFuture<T>, action: (T) -> Unit) {
-        CompletableFuture.supplyAsync(operation)
+    private fun <T> request(
+        operation: () -> CompletableFuture<T>,
+        current: Int,
+        failed: () -> Unit = {},
+        action: (T) -> Unit,
+    ) {
+        // Preserve command submission order without waiting for a reply (pause may interrupt
+        // continue).
+        val submitted = commandTail.handleAsync { _, _ -> operation() }
+        commandTail = submitted.handle { _, _ -> Unit }
+        submitted
             .thenCompose { it }
             .whenComplete { value, error ->
-                if (error != null) handler.fail(error) else ui { action(value) }
+                ui {
+                    if (current == generation) {
+                        if (error == null) action(value)
+                        else {
+                            session.reportError(
+                                generateSequence(error) { it.cause }.last().message
+                                    ?: "Delve request failed."
+                            )
+                            failed()
+                        }
+                    }
+                }
             }
     }
 
