@@ -26,10 +26,19 @@ class GoContextTest : BasePlatformTestCase() {
         val directory = PsiManager.getInstance(project).findDirectory(file.virtualFile.parent)!!
         val first = ConfigurationContext(directory).configuration!!
         first.name = "My customized command"
+        val saved = first.configuration as GoRunConfiguration
+        saved.workingDirectory = "/custom runtime"
+        saved.programArguments = "custom arguments"
+        saved.buildFlags = "-tags custom"
+        saved.environment = mapOf("CUSTOM" to "value")
         RunManager.getInstance(project).addConfiguration(first)
         assertSame(first, ConfigurationContext(file).findExisting())
         assertEquals("My customized command", first.name)
         assertSame(first, ConfigurationContext(directory).findExisting())
+        assertEquals("/custom runtime", saved.workingDirectory)
+        assertEquals("custom arguments", saved.programArguments)
+        assertEquals("-tags custom", saved.buildFlags)
+        assertEquals(mapOf("CUSTOM" to "value"), saved.environment)
     }
 
     fun testUnrelatedContextsDoNotOfferGo() {
