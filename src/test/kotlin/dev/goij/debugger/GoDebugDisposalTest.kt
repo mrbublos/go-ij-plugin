@@ -13,6 +13,74 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 
 class GoDebugDisposalTest : BasePlatformTestCase() {
+    fun testBreakpointUpdatesReturnWhileAdapterDisconnectIsPending() {
+        val directory = Files.createTempDirectory("go delayed disconnect ")
+        val settings = dev.goij.toolchain.GoToolchainSettings.getInstance().state
+        val previousDelve = settings.delveExecutable
+        java.net.ServerSocket(0).use { listener ->
+            val adapter = directory.resolve("delayed-dlv")
+            Files.writeString(
+                adapter,
+                "#!/bin/sh\necho 'DAP server listening at: 127.0.0.1:${listener.localPort}'\nexec /bin/sleep 60\n",
+            )
+            adapter.toFile().setExecutable(true)
+            settings.delveExecutable = adapter.toString()
+            val initialized = CompletableFuture<Void>()
+            val disconnecting = CompletableFuture<Void>()
+            val disconnected = CompletableFuture<Void>()
+            val server =
+                object : org.eclipse.lsp4j.debug.services.IDebugProtocolServer {
+                    override fun initialize(
+                        args: org.eclipse.lsp4j.debug.InitializeRequestArguments
+                    ) =
+                        CompletableFuture.completedFuture(org.eclipse.lsp4j.debug.Capabilities())
+                            .also { initialized.complete(null) }
+
+                    override fun launch(args: Map<String, Any>) = CompletableFuture<Void>()
+
+                    override fun disconnect(args: org.eclipse.lsp4j.debug.DisconnectArguments) =
+                        disconnected.also { disconnecting.complete(null) }
+                }
+            val factory =
+                ConfigurationTypeUtil.findConfigurationType(GoConfigurationType::class.java).factory
+            val configuration = factory.createTemplateConfiguration(project) as GoRunConfiguration
+            configuration.packageDirectory =
+                java.nio.file.Path.of("src/test/testData/hello").toAbsolutePath().toString()
+            val process = configuration.launchDebug(object : IDebugEvents {}, emptyMap())
+            try {
+                listener.soTimeout = 30000
+                process.startNotify()
+                listener.accept().use { socket ->
+                    org.eclipse.lsp4j.debug.launch.DSPLauncher.createServerLauncher(
+                            server,
+                            socket.getInputStream(),
+                            socket.getOutputStream(),
+                        )
+                        .startListening()
+                    initialized.get(10, TimeUnit.SECONDS)
+                    process.destroyProcess()
+                    disconnecting.get(10, TimeUnit.SECONDS)
+                    try {
+                        CompletableFuture.runAsync {
+                                process.updateBreakpoints("/tmp/main.go", listOf(5))
+                            }
+                            .get(500, TimeUnit.MILLISECONDS)
+                    } finally {
+                        disconnected.complete(null)
+                    }
+                    assertTrue(process.waitFor(10000))
+                    assertEquals(130, process.exitCode)
+                }
+            } finally {
+                disconnected.complete(null)
+                process.destroyProcess()
+                process.waitFor(10000)
+                settings.delveExecutable = previousDelve
+                directory.toFile().deleteRecursively()
+            }
+        }
+    }
+
     fun testProjectDisposalStopsOwnedDebugProcessAndRemovesExecutable() {
         val directory = Files.createTempDirectory("go debug closing ")
         val launchedProject =

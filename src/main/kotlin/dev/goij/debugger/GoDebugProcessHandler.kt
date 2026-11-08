@@ -74,6 +74,33 @@ class GoDebugProcessHandler(
         GoTools.requireMainPackage(exit, packageName, Path.of(input.packageDirectory))
     }
 
+    private fun buildApplication(go: String): Path {
+        val executable: Path
+        val process =
+            synchronized(lock) {
+                check(!stopped.get()) { "Debug session stopped." }
+                temporary = Files.createTempDirectory("go-ij-debug-")
+                executable = temporary!!.resolve("application")
+                ProcessBuilder(
+                        listOf(go, "build") +
+                            com.intellij.util.execution.ParametersListUtil.parse(input.buildFlags) +
+                            listOf("-gcflags=all=-N -l", "-o", executable.toString(), ".")
+                    )
+                    .directory(Path.of(input.packageDirectory).toFile())
+                    .redirectErrorStream(true)
+                    .apply { environment().putAll(input.environment) }
+                    .start()
+                    .also { child = it }
+            }
+        process.inputStream.bufferedReader().useLines { lines -> lines.forEach { output("$it\n") } }
+        val exit = process.waitFor()
+        synchronized(lock) { if (child === process) child = null }
+        check(exit == 0) {
+            "Build error: Go debug build exited with code $exit. See the console for diagnostics."
+        }
+        return executable
+    }
+
     private fun launch() {
         try {
             val go = GoTools.findGo(input.goExecutable)
@@ -85,27 +112,14 @@ class GoDebugProcessHandler(
                 "Working directory must be an existing directory: ${input.workingDirectory}"
             }
             inspectPackage(go)
-            val launchEnvironment = input.environment.toMutableMap()
+            val executable = buildApplication(go)
             val process =
                 synchronized(lock) {
                     check(!stopped.get()) { "Debug session stopped." }
-                    temporary = Files.createTempDirectory("go-ij-debug-")
-                    val toolDirectory = Files.createDirectory(temporary!!.resolve("bin"))
-                    Files.createSymbolicLink(
-                        toolDirectory.resolve("go"),
-                        Path.of(go).toAbsolutePath(),
-                    )
                     ProcessBuilder(delve, "dap", "--listen=127.0.0.1:0")
                         .directory(Path.of(input.packageDirectory).toFile())
                         .redirectErrorStream(true)
-                        .apply {
-                            environment().putAll(input.environment)
-                            environment()["PATH"] =
-                                toolDirectory.toString() +
-                                    java.io.File.pathSeparator +
-                                    environment()["PATH"].orEmpty()
-                            launchEnvironment["PATH"] = environment()["PATH"]!!
-                        }
+                        .apply { environment().putAll(input.environment) }
                         .start()
                         .also { child = it }
                 }
@@ -177,14 +191,12 @@ class GoDebugProcessHandler(
             dap.initialize(
                     mapOf(
                         "request" to "launch",
-                        "mode" to "debug",
-                        "program" to Path.of(input.packageDirectory).toRealPath().toString(),
+                        "mode" to "exec",
+                        "program" to executable.toString(),
                         "dlvCwd" to Path.of(input.packageDirectory).toRealPath().toString(),
                         "cwd" to input.workingDirectory,
                         "args" to input.programArguments,
-                        "env" to launchEnvironment,
-                        "buildFlags" to input.buildFlags,
-                        "output" to temporary!!.resolve("application").toString(),
+                        "env" to input.environment,
                     ),
                     emptyMap(),
                 )
@@ -199,6 +211,7 @@ class GoDebugProcessHandler(
 
     fun updateBreakpoints(path: String, lines: List<Int>) {
         synchronized(lock) {
+            if (stopped.get()) return
             desiredBreakpoints[path] = lines.toList()
             connection?.setBreakpoints(path, lines)?.exceptionally {
                 fail(it)
@@ -228,31 +241,35 @@ class GoDebugProcessHandler(
         if (!stopped.compareAndSet(false, true)) return
         ready.completeExceptionally(IllegalStateException("Debug session ended."))
         java.lang.Thread.ofVirtual().name("go-debug-cleanup").start {
-            try {
+            val (process, dap, directory) =
                 synchronized(lock) {
-                    val process = child
-                    val descendants = process?.descendants()?.toList().orEmpty()
-                    try {
-                        connection
-                            ?.server
-                            ?.disconnect(DisconnectArguments().apply { terminateDebuggee = true })
-                            ?.get(2, TimeUnit.SECONDS)
-                    } catch (_: Exception) {
-                        /* A dead adapter cannot acknowledge disconnect. */
+                    Triple(child, connection, temporary).also {
+                        child = null
+                        connection = null
+                        temporary = null
                     }
-                    runCatching { connection?.close() }
-                    descendants.reversed().forEach { it.destroy() }
-                    process?.destroy()
-                    if (process != null && !process.waitFor(2, TimeUnit.SECONDS))
-                        process.destroyForcibly().waitFor()
-                    descendants.reversed().forEach {
-                        if (it.isAlive) {
-                            it.destroyForcibly()
-                            runCatching { it.onExit().get(2, TimeUnit.SECONDS) }
-                        }
-                    }
-                    temporary?.toFile()?.deleteRecursively()
                 }
+            try {
+                val descendants = process?.descendants()?.toList().orEmpty()
+                try {
+                    dap?.server
+                        ?.disconnect(DisconnectArguments().apply { terminateDebuggee = true })
+                        ?.get(2, TimeUnit.SECONDS)
+                } catch (_: Exception) {
+                    /* A dead adapter cannot acknowledge disconnect. */
+                }
+                runCatching { dap?.close() }
+                descendants.reversed().forEach { it.destroy() }
+                process?.destroy()
+                if (process != null && !process.waitFor(2, TimeUnit.SECONDS))
+                    process.destroyForcibly().waitFor()
+                descendants.reversed().forEach {
+                    if (it.isAlive) {
+                        it.destroyForcibly()
+                        runCatching { it.onExit().get(2, TimeUnit.SECONDS) }
+                    }
+                }
+                directory?.toFile()?.deleteRecursively()
             } finally {
                 notifyProcessTerminated(code)
             }

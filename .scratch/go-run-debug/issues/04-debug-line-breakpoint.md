@@ -26,10 +26,10 @@ rejected breakpoints update native presentation; suspension shows the top source
 location, and native Resume, Stop, and repeat launches work.
 
 Delve discovery and its persistent override are available in Go Toolchain settings.
-The selected Go executable is exposed through a session-owned `bin/go` symlink so
-renamed overrides are honored. Canonical package paths and explicit `dlvCwd` keep
-macOS symlink paths and separate runtime directories from changing build selection.
-Each session owns its loopback server, DAP connection, tool shim, build output, and
+The selected Go executable builds the session-owned debug binary directly, so
+renamed overrides are honored without changing application PATH. Explicit package
+and `dlvCwd` directories keep separate runtime directories from changing build selection.
+Each session owns its loopback server, DAP connection, build process/output, and
 process tree; failure, Stop, normal exit, and project disposal clean up those resources.
 Launch/build/protocol work runs off the EDT, and adapter diagnostics reach the console.
 
@@ -46,3 +46,6 @@ native Debug runner's source suspension, Resume, Stop, and fresh second launch.
 The native runner tests use the real plugin extension registrations in a headless
 IDE. An interactive Debug-window walkthrough and the user's actual project remain
 separate validation; full stack/variable browsing and stepping remain ticket 05.
+
+Final review replaced the compiler PATH shim with a session-owned debug build and
+DAP exec launch; see ADR 0003 and ticket 06 for regression and release evidence.

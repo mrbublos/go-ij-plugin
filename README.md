@@ -51,7 +51,9 @@ source position, goroutines, stack frames, scopes and expandable variables. Use 
 Pause, Resume, Step Into, Step Over, Step Out, Stop and Rerun controls. Unsupported
 breakpoint locations are reported as unverified. Adapter/build failures appear in
 the console. Each session owns a loopback Delve DAP server, connection and temporary
-build output; normal exit, failure, Stop and project closure release them.
+build output; normal exit, failure, Stop and project closure release them. Debug builds
+use the selected Go compiler with optimization/inlining disabled, then Delve launches
+the executable. Configured and inherited PATH values reach the application unchanged.
 
 If macOS rejects debugging, inspect the Debug console first. Check that the selected
 Delve executable runs from a terminal and matches the machine architecture. Review
@@ -97,7 +99,7 @@ headless native-platform checks separately from interactive and real-project che
 
 ## Recorded validation
 
-On 2026-11-08, all 32 tests, formatting, compilation, ZIP creation and offline
+On 2026-11-08, all 33 tests, formatting, compilation, ZIP creation and offline
 Plugin Verifier passed on macOS Apple Silicon with Go 1.25.1, Delve 1.25.2 and
 IDEA IU-262.10315.125. The ZIP plugin JAR matches the headless sandbox JAR byte for
 byte; the platform smoke asserts JetBrains' Go plugin absent or disabled. Verifier
