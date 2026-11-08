@@ -19,7 +19,7 @@ class GoDebugLaunchTest : BasePlatformTestCase() {
         val marker = directory.resolve("selected-go-used")
         java.nio.file.Files.writeString(
             selectedGo,
-            "#!/bin/sh\nprintf used >> '${marker}'\nexec '${dev.goij.toolchain.GoTools.findGo(previousGo)}' \"${'$'}@\"\n",
+            "#!/bin/sh\nprintf '%s\\n' \"${'$'}*\" >> '${marker}'\nexec '${dev.goij.toolchain.GoTools.findGo(previousGo)}' \"${'$'}@\"\n",
         )
         selectedGo.toFile().setExecutable(true)
         settings.goExecutable = selectedGo.toString()
@@ -37,7 +37,7 @@ class GoDebugLaunchTest : BasePlatformTestCase() {
                     import ("fmt"; "os")
                     func main() {
                         data, _ := os.ReadFile("relative.txt")
-                        fmt.Printf("%s|%s|%s", os.Args[1], os.Getenv("GO_IJ_DEBUG"), data)
+                        fmt.Printf("%s|%s|%s|PATH=%s\n", os.Args[1], os.Getenv("GO_IJ_DEBUG"), data, os.Getenv("PATH"))
                     }
                 """
                     .trimIndent(),
@@ -51,7 +51,8 @@ class GoDebugLaunchTest : BasePlatformTestCase() {
             configuration.workingDirectory = working.toString()
             configuration.programArguments = "\"two words\""
             configuration.buildFlags = "-tags=debugfixture"
-            configuration.environment = mapOf("GO_IJ_DEBUG" to "configured")
+            configuration.environment =
+                mapOf("GO_IJ_DEBUG" to "configured", "PATH" to "/usr/bin:/bin")
             val feedback = CompletableFuture<Array<Breakpoint>>()
             val output = StringBuffer()
             val handler =
@@ -80,13 +81,40 @@ class GoDebugLaunchTest : BasePlatformTestCase() {
                 assertFalse(feedback.get(60, TimeUnit.SECONDS).single().isVerified)
                 assertTrue(handler.waitFor(15000))
                 assertEquals(0, handler.exitCode)
-                assertTrue(output.toString(), output.contains("two words|configured|runtime-file"))
+                assertTrue(
+                    output.toString(),
+                    output.contains("two words|configured|runtime-file|PATH=/usr/bin:/bin\n"),
+                )
                 assertTrue(
                     "Explicitly selected custom Go executable was not used",
-                    java.nio.file.Files.exists(marker),
+                    java.nio.file.Files.readString(marker).lineSequence().any {
+                        it.startsWith("build ")
+                    },
                 )
             } finally {
                 handler.destroyProcess()
+            }
+            configuration.environment = mapOf("GO_IJ_DEBUG" to "configured")
+            val inheritedOutput = StringBuffer()
+            val inherited =
+                configuration.launchDebug(
+                    object : IDebugEvents {
+                        override fun output(text: String) {
+                            inheritedOutput.append(text)
+                        }
+                    },
+                    emptyMap(),
+                )
+            inherited.startNotify()
+            try {
+                assertTrue(inherited.waitFor(30000))
+                assertEquals(0, inherited.exitCode)
+                assertTrue(
+                    inheritedOutput.toString(),
+                    inheritedOutput.contains("|PATH=${System.getenv("PATH")}\n"),
+                )
+            } finally {
+                inherited.destroyProcess()
             }
             java.nio.file.Files.writeString(
                 directory.resolve("main.go"),

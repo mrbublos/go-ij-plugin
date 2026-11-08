@@ -35,15 +35,15 @@ Validation on macOS Apple Silicon, Go 1.25.1, Delve 1.25.2, Java 25 and installe
 IDEA 2026.2.2 (IU-262.10315.125):
 
 - `GRADLE_USER_HOME=/private/tmp/go-ij-gradle ./gradlew --offline -PlocalIde='/Applications/IntelliJ IDEA.app' spotlessApply check buildPlugin verifyPlugin` passed.
-- All 32 tests passed, none skipped. This includes native headless platform Run/Debug
+- All 33 tests passed, none skipped. This includes native headless platform Run/Debug
   and configuration/context seams, real Delve breakpoints, stepping, goroutines,
   frames, variables, output, stop/consecutive sessions and project-close cleanup;
   missing tools, non-main packages, build failures and unverified breakpoints;
   external DAP fake-server ordering, disconnect and rejected-request checks.
 - Built `build/distributions/go-ij-plugin-0.1.0.zip`. ZIP SHA256:
-  `b3b033550e31a1b51e6fd7ae526e2f2cd329bb7907e4d3929a03d924281a35aa`.
+  `0a40624d0195f1ead537906f922ee65db71c0e25cff09b8e60c4500f20ba87c2`.
   Its plugin JAR is byte-identical to the JAR loaded by the headless test sandbox
-  (SHA256 `bdf3cdabd76a920a05319ec04114b96e2e3e23b80e5ddf068819f8cc21fe1d97`).
+  (SHA256 `96a40c8e0fc53a1cc9c0a3a06d1926a6bc3a281b834831e167fe395826b65d9a`).
   The platform smoke asserts this plugin enabled and JetBrains' Go plugin absent
   or disabled. The manifest requires only `com.intellij.modules.platform`.
 - Plugin Verifier reports **Compatible**, with two deprecated `DefaultProgramRunner`
@@ -57,3 +57,18 @@ Sandbox evidence is automated/headless, including native XDebugger state and the
 packaged plugin JAR; an interactive menu/gutter/window walkthrough and install-dialog
 exercise were not performed. No developer real-project acceptance is claimed.
 No Marketplace publication was performed.
+
+## Final review fixes
+
+Both P2 findings were reproduced before implementation. The delayed-disconnect
+fake DAP regression timed out while updating breakpoints during cleanup. Cleanup
+now detaches owned resources under the session lock and performs blocking waits
+outside it; breakpoint changes after Stop return immediately. The real launch
+regression also exposed the internal compiler shim in application PATH. Debug now
+builds its owned executable with the selected Go compiler and launches Delve in
+DAP exec mode (ADR 0003). The strengthened launch test proves both exact configured
+and inherited PATH and actual build invocation of a renamed compiler override.
+
+Both focused test classes passed after the fixes, followed by the full 33-test
+suite, formatting, ZIP build and target-IDE verification. The hashes above refer
+to the reviewed build. Interactive and real-project limitations remain unchanged.
