@@ -1,0 +1,12 @@
+<idea-plugin>
+  <id>dev.goij.standalone</id>
+  <name>Standalone Go Run and Debug</name>
+  <vendor>go-ij-plugin</vendor>
+  <description>Run local Go main packages without the JetBrains Go plugin.</description>
+  <depends>com.intellij.modules.platform</depends>
+  <extensions defaultExtensionNs="com.intellij">
+    <programRunner implementation="dev.goij.configuration.GoRunRunner"/>
+    <configurationType implementation="dev.goij.configuration.GoConfigurationType"/>
+    <applicationConfigurable parentId="tools" id="dev.goij.toolchain" displayName="Go Toolchain" instance="dev.goij.toolchain.GoToolchainConfigurable"/>
+  </extensions>
+</idea-plugin>

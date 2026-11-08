@@ -4,7 +4,9 @@ A personal-use plugin for running and debugging local Go main packages without J
 
 ## Current state
 
-This repository contains specifications and project conventions. Plugin code, Gradle configuration, and automated checks have not been implemented. There is no installable plugin yet.
+The first slice implements saved Go Application configurations, Go toolchain
+selection, whole-package builds, console output, exit codes, and Stop/Rerun.
+Context actions, editable launch options, and debugging are tracked in later tickets.
 
 ## Start here
 
@@ -16,8 +18,51 @@ This repository contains specifications and project conventions. Plugin code, Gr
 
 ## Development and verification
 
-Bootstrap will add the Gradle wrapper, pinned build dependencies and formatter, and verified commands here for formatting checks, compilation, deterministic tests, sandbox launch, plugin ZIP creation, and target-IDE compatibility verification. Consult the feature specification for toolchain targets; they are not evidence of a working build.
+Use Java 25 (the target IDE's bundled JBR also works). Gradle's wrapper pins 9.1.0.
+The default SDK is IntelliJ IDEA 2026.2.2. To use an installed copy, append
+`-PlocalIde="/Applications/IntelliJ IDEA.app"` to each command.
 
-For each change, run checks appropriate to its behavior and report what passed or could not run. Documentation-only changes need link and consistency checks. Before declaring a build installable, build its ZIP and verify target-IDE compatibility. Changes affecting launch or debugging also need the relevant real Go/Delve and sandbox scenarios from the specification.
+```sh
+./gradlew spotlessCheck             # Formatting verification
+./gradlew spotlessApply             # Apply the pinned formatter
+./gradlew compileKotlin compileTestKotlin
+./gradlew test                      # Configuration integration tests; requires Go
+./gradlew runIde                    # Isolated development sandbox
+./gradlew buildPlugin               # ZIP under build/distributions
+./gradlew verifyPlugin              # Compatibility with the selected target IDE
+./gradlew check                     # Compilation, formatting, and tests
+```
 
-Automated checks added at bootstrap must cover compilation, formatting verification, and deterministic tests. Real-tool and interactive checks must be reported separately when the environment cannot run them.
+The tests launch small Go fixtures; Go must be installed and discoverable. Build
+cancellation tests use a temporary fake executable at the external tool boundary.
+The tests do not require Delve or the JetBrains Go plugin. Report real-tool and
+interactive sandbox checks separately from deterministic failure/persistence tests.
+
+## Running a saved configuration
+
+In **Settings > Tools > Go Toolchain**, optionally set the Go executable path.
+A blank path detects Go from PATH, `/opt/homebrew/bin`, `/usr/local/bin`, or
+`/usr/local/go/bin`. An explicit path takes precedence and is never silently
+replaced if invalid.
+
+In **Run > Edit Configurations**, add **Go Application**, choose the directory of
+a main package, and run it. The entire package is built into a temporary executable;
+its directory is the working directory. Compiler errors and application output
+appear in the Run console. Stop cancels builds or execution; Rerun builds a fresh
+executable. Session temporary executables are removed on termination.
+
+Before declaring a build installable, build its ZIP and run target-IDE compatibility
+verification. For a sandbox smoke test, disable JetBrains' Go plugin, open the
+`src/test/testData/hello` fixture, save a Go Application configuration, Run it,
+and confirm `whole package works` plus exit 0. Repeat after restarting the sandbox.
+Test Stop/Rerun and project closure with a long-running program. The user's actual
+Go project remains a separate acceptance test.
+
+## Validation recorded for the first slice
+
+Compilation, formatting, all 10 platform configuration tests with real Go,
+headless sandbox plugin loading, ZIP creation, and offline target-IDE verification
+passed on macOS Apple Silicon. Plugin Verifier reports compatibility with
+IU-262.10315.125 and two deprecated `DefaultProgramRunner` references. The automated
+smoke restores a saved configuration and runs it with JetBrains' Go plugin absent;
+it does not establish an interactive UI walkthrough or real-project acceptance.
