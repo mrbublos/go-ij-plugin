@@ -5,6 +5,7 @@
   <description>Run local Go main packages without the JetBrains Go plugin.</description>
   <depends>com.intellij.modules.platform</depends>
   <extensions defaultExtensionNs="com.intellij">
+    <runConfigurationProducer implementation="dev.goij.configuration.GoConfigurationProducer"/>
     <programRunner implementation="dev.goij.configuration.GoRunRunner"/>
     <configurationType implementation="dev.goij.configuration.GoConfigurationType"/>
     <applicationConfigurable parentId="tools" id="dev.goij.toolchain" displayName="Go Toolchain" instance="dev.goij.toolchain.GoToolchainConfigurable"/>
