@@ -24,12 +24,37 @@ translates persisted settings into those inputs before launch. Neither package
 reads configuration UI state, and neither depends on the other. Platform and
 library dependencies may be used where the responsibility requires them.
 
-Keep interfaces small and implementation details private where practical.
-Introduce interfaces for actual variation or external integrations, rather than
-one interface per class. Keep helpers beside their behavior. Extract shared code
-only when multiple callers need the same behavior, place it with its owner, and
-revisit this dependency map if no existing owner fits. Avoid generic `utils`,
-`common`, and `managers` packages and empty scaffolding. There is no public plugin API.
+There is no public plugin API. Avoid generic `utils`, `common`, and `managers`
+packages and empty scaffolding. Place shared behavior with its owner and revisit
+this dependency map if no existing owner fits.
+
+## File size, splits, and abstractions
+
+- Aim for source files under roughly 300 lines. Beyond that, review cohesion;
+  size alone does not require a split.
+- Keep functions focused on one clear operation. Around 40–50 lines, check whether
+  distinct responsibilities deserve named functions. These size thresholds are
+  review prompts, not hard CI limits; preserve readability rather than compressing
+  code or splitting it arbitrarily to meet a count.
+- Split files when parts have different reasons to change, independent state or
+  lifecycles, or independently useful behavior. Keep tightly related code together.
+  Use one primary class per file by default; small supporting types may stay beside
+  their owner.
+- Start with concrete code. Extract an abstraction when it hides meaningful
+  complexity, centralizes an invariant, or supports actual variation. Keep its
+  interface small and implementation details private where practical.
+- Introduce interfaces at meaningful external seams or where implementations
+  genuinely vary, rather than one interface per class.
+- Share duplicated rules, not merely similar-looking code. Similar blocks may
+  remain separate when they evolve independently. Keep helpers private or
+  package-local first; promote them when real callers need the same behavior.
+- Prefer explicit control flow, early returns, and named operations over deeply
+  nested branches or clever generic machinery.
+
+For example, a growing debugger implementation may split into DAP communication,
+breakpoint synchronization, and XDebugger presentation when those responsibilities
+need separate implementations. Keep session ownership and cleanup coherent across
+such splits rather than scattering lifecycle decisions among helpers.
 
 ## Threading and resource ownership
 
@@ -59,6 +84,8 @@ real Go/Delve and IDE sandbox validation for behavior fakes cannot establish.
 Avoid tests coupled to private method calls or class structure. Follow the
 [README verification expectations](../README.md#development-and-verification)
 and feature acceptance scenarios.
+Difficulty testing is a reason to examine responsibility and dependencies, rather
+than automatically adding wrappers or test-only interfaces.
 
 ## Maintaining the design
 
