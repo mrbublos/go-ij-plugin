@@ -6,7 +6,7 @@ A personal-use plugin for running and debugging local Go main packages without J
 
 The first slice implements saved Go Application configurations, Go toolchain
 selection, whole-package builds, console output, exit codes, and Stop/Rerun.
-Context actions, editable launch options, and debugging are tracked in later tickets.
+Context actions and debugging are tracked in later tickets.
 
 ## Start here
 
@@ -47,7 +47,13 @@ replaced if invalid.
 
 In **Run > Edit Configurations**, add **Go Application**, choose the directory of
 a main package, and run it. The entire package is built into a temporary executable;
-its directory is the working directory. Compiler errors and application output
+its directory is the default working directory. Set **Working directory** to run
+elsewhere (blank uses the package directory), **Program arguments** for arguments
+using IntelliJ quoting conventions, **Build flags** for Go build options such as
+`-tags special`, and **Environment overrides** for variables added to the inherited
+environment. Build flags and environment also apply to package inspection; builds
+always select the package directory even when the runtime directory differs.
+All these options are saved with the configuration. Compiler errors and application output
 appear in the Run console. Stop cancels builds or execution; Rerun builds a fresh
 executable. Session temporary executables are removed on termination.
 
