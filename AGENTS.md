@@ -2,6 +2,9 @@
 
 Before exploring the codebase, read [domain guidance](docs/agents/domain.md).
 Before implementing or reviewing code, read [architecture](docs/architecture.md).
+Use the `ponytail` skill when writing, fixing, refactoring, or reviewing code,
+and when choosing dependencies. Read its `SKILL.md` from the available skills
+catalog and use its default level unless the user selects another.
 
 Keep changes proportional: features and substantial fixes use specs and tickets;
 small, well-defined fixes can proceed directly. Keep unrelated cleanup separate.
