@@ -8,7 +8,7 @@ Trigger on source/tests, Gradle configuration/wrapper, and workflow changes; all
 manual runs on `main`. Exclude documentation-only changes.
 
 Gate publication on formatting, tests, packaging, and target-IDE compatibility.
-Use macOS ARM, Java 25, Go 1.25.1, and Delve 1.25.2. Assign a unique CI plugin
+Use macOS ARM, Java 25, Go 1.27.3, and Delve 1.27.2. Assign a unique CI plugin
 version and bind the release tag to the tested commit. Reruns must not duplicate
 or replace an existing release. Use GitHub's built-in token.
 

@@ -39,12 +39,12 @@ jobs:
           java-version: '25'
       - uses: actions/setup-go@v7
         with:
-          go-version: '1.25.1'
+          go-version: '1.27.3'
           cache: false
       - uses: gradle/actions/setup-gradle@v6
       - name: Install test debugger and language server
         run: |
-          go install github.com/go-delve/delve/cmd/dlv@v1.25.2
+          go install github.com/go-delve/delve/cmd/dlv@v1.27.2
           go install golang.org/x/tools/gopls@v0.24.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Test, package, and verify

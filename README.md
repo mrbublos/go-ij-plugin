@@ -114,7 +114,7 @@ The [release workflow](.github/workflows/release.yml) runs on pushes to `main`
 that change source/tests, Gradle build files or the workflow itself. Documentation-only
 changes do not publish a release. It can also be run manually from Actions on `main`.
 
-On macOS ARM, it installs Java 25, Go 1.25.1, Delve 1.25.2 and gopls 0.24.0, then runs `check`,
+On macOS ARM, it installs Java 25, Go 1.27.3, Delve 1.27.2 and gopls 0.24.0, then runs `check`,
 `buildPlugin` and `verifyPlugin`. Only successful checks publish the ZIP to GitHub
 Releases using the built-in `GITHUB_TOKEN`; no personal token is required. Repository
 or organization policy must allow the workflow's `contents: write` permission.
