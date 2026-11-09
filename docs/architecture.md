@@ -14,7 +14,8 @@ in tests and keep small Go module fixtures under `src/test/testData/`.
 | Package | Owns | Allowed project-package dependencies |
 | --- | --- | --- |
 | `configuration` | Persisted run configurations, editors, context actions, reuse | `execution`, `debugger`, `toolchain` |
-| `execution` | Go builds, application processes, console integration, run-session cleanup | `toolchain` |
+| `execution` | Go builds, application processes, console integration, run-session cleanup | `navigation` | Go editor declaration lookup through the platform LSP client | `toolchain` |
+| `toolchain` |
 | `debugger` | Delve DAP sessions, breakpoints, XDebugger integration, debug-session cleanup | `toolchain` |
 | `toolchain` | Executable settings, discovery, validation, Go package inspection | None |
 

@@ -4,6 +4,7 @@
   <vendor>go-ij-plugin</vendor>
   <description>Run local Go main packages without the JetBrains Go plugin.</description>
   <depends>com.intellij.modules.platform</depends>
+  <depends optional="true" config-file="go-navigation.xml">com.intellij.modules.lsp</depends>
   <extensions defaultExtensionNs="com.intellij">
     <runConfigurationProducer implementation="dev.goij.configuration.GoConfigurationProducer"/>
     <programRunner implementation="dev.goij.configuration.GoRunRunner"/>

@@ -21,6 +21,12 @@ for Go, and `~/go/bin` for Delve). Explicit paths take precedence; invalid paths
 produce setup guidance rather than silently falling back. Run requires only Go;
 Debug requires both tools.
 
+## Go to Declaration
+
+Open the Go module in IntelliJ IDEA, then ⌘-click a Go identifier or put the caret on it and press ⌘B. The editor uses the Go language server (`gopls`) to resolve declarations within and across packages, including aliased imports. The first lookup may take a moment while gopls loads the module.
+
+Navigation requires Go and gopls. Install gopls with `go install golang.org/x/tools/gopls@v0.24.0`. The plugin searches PATH, common Homebrew locations and `~/go/bin`.
+
 ## Run a package
 
 Run and Debug print a startup message before checking the toolchain. During debugging, the Debug tool window’s Console tab streams application stdout and stderr. The Run console also shows which package is being built, when the application is launching, and the final exit code.
@@ -86,7 +92,7 @@ the default SDK is IntelliJ IDEA 2026.2.2. Append
 ./gradlew spotlessCheck             # Formatting verification
 ./gradlew spotlessApply             # Apply the pinned formatter
 ./gradlew compileKotlin compileTestKotlin
-./gradlew test                      # Requires installed Go and Delve
+./gradlew test                      # Requires installed Go, Delve and gopls
 ./gradlew check                     # Compilation, formatting and tests
 ./gradlew runIde                    # Isolated development sandbox
 ./gradlew buildPlugin               # ZIP under build/distributions
@@ -108,7 +114,7 @@ The [release workflow](.github/workflows/release.yml) runs on pushes to `main`
 that change source/tests, Gradle build files or the workflow itself. Documentation-only
 changes do not publish a release. It can also be run manually from Actions on `main`.
 
-On macOS ARM, it installs Java 25, Go 1.25.1 and Delve 1.25.2, then runs `check`,
+On macOS ARM, it installs Java 25, Go 1.25.1, Delve 1.25.2 and gopls 0.24.0, then runs `check`,
 `buildPlugin` and `verifyPlugin`. Only successful checks publish the ZIP to GitHub
 Releases using the built-in `GITHUB_TOKEN`; no personal token is required. Repository
 or organization policy must allow the workflow's `contents: write` permission.

@@ -16,6 +16,9 @@ object GoTools {
 
     fun findGo(explicit: String): String = find(explicit, "Go", "go", listOf("/usr/local/go/bin"))
 
+    fun findGopls() =
+        find("", "gopls", "gopls", listOf(System.getProperty("user.home") + "/go/bin"))
+
     fun findDelve(explicit: String): String =
         find(explicit, "Delve", "dlv", listOf(System.getProperty("user.home") + "/go/bin"))
 
@@ -39,7 +42,10 @@ object GoTools {
             .firstOrNull { Files.isRegularFile(it) && Files.isExecutable(it) }
             ?.toString()
             ?: throw IllegalArgumentException(
-                "$name was not found. Install $name and set its executable in Settings > Tools > Go Toolchain."
+                if (name == "gopls")
+                    "Install gopls on PATH or in ~/go/bin for Go declaration navigation."
+                else
+                    "$name was not found. Install $name and set its executable in Settings > Tools > Go Toolchain."
             )
     }
 

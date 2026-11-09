@@ -42,9 +42,10 @@ jobs:
           go-version: '1.25.1'
           cache: false
       - uses: gradle/actions/setup-gradle@v6
-      - name: Install test debugger
+      - name: Install test debugger and language server
         run: |
           go install github.com/go-delve/delve/cmd/dlv@v1.25.2
+          go install golang.org/x/tools/gopls@v0.24.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Test, package, and verify
         run: ./gradlew --no-daemon check buildPlugin verifyPlugin "-PpluginVersion=$PLUGIN_VERSION"
