@@ -1,8 +1,12 @@
 package dev.goij.configuration
 
 import com.intellij.execution.configurations.ConfigurationTypeUtil
+import com.intellij.execution.executors.DefaultRunExecutor
+import com.intellij.execution.impl.ConsoleViewImpl
 import com.intellij.execution.process.ProcessEvent
 import com.intellij.execution.process.ProcessListener
+import com.intellij.execution.process.ProcessOutputTypes
+import com.intellij.execution.runners.ExecutionEnvironmentBuilder
 import com.intellij.ide.impl.OpenProjectTask
 import com.intellij.ide.plugins.PluginManagerCore
 import com.intellij.openapi.application.ApplicationManager
@@ -10,6 +14,7 @@ import com.intellij.openapi.extensions.PluginId
 import com.intellij.openapi.project.ex.ProjectManagerEx
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.Key
+import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import dev.goij.toolchain.GoToolchainSettings
 import java.nio.file.Files
@@ -19,6 +24,61 @@ import java.util.concurrent.TimeUnit
 import org.jdom.Element
 
 class GoConfigurationTest : BasePlatformTestCase() {
+    fun testRunConsoleDisplaysLiveApplicationOutput() {
+        val directory = Files.createTempDirectory("go live console ")
+        try {
+            Files.writeString(
+                directory.resolve("go.mod"),
+                "module example.com/console\n\ngo 1.20\n",
+            )
+            Files.writeString(
+                directory.resolve("main.go"),
+                """
+                package main
+                    import ("fmt"; "os"; "time")
+                    func main() {
+                        fmt.Print("stdout ready")
+                        fmt.Fprint(os.Stderr, "stderr ready")
+                        time.Sleep(time.Minute)
+                    }
+                """
+                    .trimIndent(),
+            )
+            val configuration =
+                ConfigurationTypeUtil.findConfigurationType(GoConfigurationType::class.java)
+                    .factory
+                    .createTemplateConfiguration(project) as GoRunConfiguration
+            configuration.packageDirectory = directory.toString()
+            val executor = DefaultRunExecutor.getRunExecutorInstance()
+            val environment = ExecutionEnvironmentBuilder.create(executor, configuration).build()
+            val result =
+                configuration
+                    .getState(executor, environment)
+                    .execute(executor, environment.runner)!!
+            val console = result.executionConsole as ConsoleViewImpl
+            val handler = result.processHandler!!
+            try {
+                console.component
+                handler.startNotify()
+                PlatformTestUtil.waitWithEventsDispatching(
+                    "Missing live application output",
+                    {
+                        console.editor!!.document.text.contains("stdout ready") &&
+                            console.editor!!.document.text.contains("stderr ready")
+                    },
+                    30,
+                )
+                assertFalse(handler.isProcessTerminated)
+            } finally {
+                handler.destroyProcess()
+                handler.waitFor(10000)
+                Disposer.dispose(console)
+            }
+        } finally {
+            directory.toFile().deleteRecursively()
+        }
+    }
+
     fun testLaunchBuildsWholePackageWithSpaces() {
         val directory = Files.createTempDirectory("go package with spaces ")
         try {
@@ -67,6 +127,8 @@ class GoConfigurationTest : BasePlatformTestCase() {
             ConfigurationTypeUtil.findConfigurationType(GoConfigurationType::class.java)
                 .factory
                 .createTemplateConfiguration(project) as GoRunConfiguration
+        assertNotNull(project.basePath)
+        assertEquals(project.basePath, first.packageDirectory)
         first.packageDirectory = "/a package/with spaces"
         val xml = Element("configuration")
         first.writeExternal(xml)
@@ -76,6 +138,12 @@ class GoConfigurationTest : BasePlatformTestCase() {
                 .createTemplateConfiguration(project) as GoRunConfiguration
         restored.readExternal(xml)
         assertEquals(first.packageDirectory, restored.packageDirectory)
+    }
+
+    fun testSilentApplicationReportsExitCode() {
+        val (exit, output) = runSource("package main\nimport \"os\"\nfunc main() { os.Exit(17) }")
+        assertEquals(17, exit)
+        assertTrue(output, output.contains("exit code 17"))
     }
 
     fun testMissingGoIsActionable() {
@@ -129,6 +197,7 @@ class GoConfigurationTest : BasePlatformTestCase() {
                 process.addProcessListener(
                     object : ProcessListener {
                         override fun onTextAvailable(event: ProcessEvent, outputType: Key<*>) {
+                            if (outputType != ProcessOutputTypes.STDOUT) return
                             output.append(event.text)
                             if (output.contains("application")) ready.countDown()
                         }

@@ -23,12 +23,14 @@ Debug requires both tools.
 
 ## Run a package
 
+Run and Debug print a startup message before checking the toolchain. The Run console also shows which package is being built, when the application is launching, and the final exit code.
+
 In **Run > Edit Configurations**, add **Go Application**:
 
 | Field | Meaning |
 | --- | --- |
-| Main package directory | Directory containing the whole executable `package main` |
-| Working directory | Runtime directory; blank defaults to the package directory |
+| Main package directory | Defaults to the project directory. For a nested executable, select its `package main` directory (for example, `cmd/api`). |
+| Working directory | Prefilled from the main package directory. Enter a different runtime directory to override it, or clear the field to restore the default. |
 | Program arguments | Arguments using IntelliJ quoting, such as `one "two words"` |
 | Environment overrides | Values added to or replacing the inherited environment |
 | Build flags | Go build options such as `-tags special` |

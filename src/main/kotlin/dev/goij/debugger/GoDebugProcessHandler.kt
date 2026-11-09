@@ -103,6 +103,7 @@ class GoDebugProcessHandler(
 
     private fun launch() {
         try {
+            notifyTextAvailable("Starting Go debug session…\n", ProcessOutputTypes.SYSTEM)
             val go = GoTools.findGo(input.goExecutable)
             val delve = GoTools.findDelve(input.delveExecutable)
             require(Files.isDirectory(Path.of(input.packageDirectory))) {

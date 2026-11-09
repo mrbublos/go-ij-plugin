@@ -4,12 +4,42 @@ import com.intellij.execution.configurations.ConfigurationTypeUtil
 import com.intellij.execution.configurations.RuntimeConfigurationError
 import com.intellij.execution.process.ProcessEvent
 import com.intellij.execution.process.ProcessListener
+import com.intellij.execution.process.ProcessOutputTypes
+import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.Key
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import java.nio.file.Files
+import javax.swing.JTextField
 import org.jdom.Element
 
 class GoLaunchOptionsTest : BasePlatformTestCase() {
+    fun testWorkingDirectoryEditorFollowsPackageUntilOverridden() {
+        val configuration = configuration()
+        configuration.packageDirectory = "/first/package"
+        val editor = configuration.getConfigurationEditor()
+        try {
+            val (directory, workingDirectory) =
+                editor.component.components.filterIsInstance<JTextField>()
+            editor.resetFrom(configuration)
+            assertEquals("/first/package", workingDirectory.text)
+            directory.text = "/second/package"
+            assertEquals(directory.text, workingDirectory.text)
+            editor.applyTo(configuration)
+            assertEquals("", configuration.workingDirectory)
+            workingDirectory.text = "/runtime"
+            directory.text = "/third/package"
+            assertEquals("/runtime", workingDirectory.text)
+            editor.applyTo(configuration)
+            assertEquals("/runtime", configuration.workingDirectory)
+            workingDirectory.text = ""
+            editor.applyTo(configuration)
+            editor.resetFrom(configuration)
+            assertEquals(directory.text, workingDirectory.text)
+        } finally {
+            Disposer.dispose(editor)
+        }
+    }
+
     fun testLaunchOptionsSurvivePersistence() {
         val configuration = configuration()
         configuration.packageDirectory = "/package with spaces"
@@ -119,7 +149,7 @@ class GoLaunchOptionsTest : BasePlatformTestCase() {
         process.addProcessListener(
             object : ProcessListener {
                 override fun onTextAvailable(event: ProcessEvent, outputType: Key<*>) {
-                    output.append(event.text)
+                    if (outputType != ProcessOutputTypes.SYSTEM) output.append(event.text)
                 }
             }
         )

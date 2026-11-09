@@ -92,10 +92,12 @@ class GoContextDebugTest : BasePlatformTestCase() {
                 """
                     //go:build contextdebug
                     package main
-                    import ("fmt"; "os")
+                    import ("fmt"; "os"; "time")
                     func main() {
                         data, err := os.ReadFile("relative.txt"); if err != nil { panic(err) }
+                        fmt.Fprint(os.Stderr, "stderr ready")
                         fmt.Printf("%s|%s|%s|%s", message, os.Args[1], os.Getenv("GO_CONTEXT"), data)
+                        for { if _, err := os.Stat("finish"); err == nil { break }; time.Sleep(10 * time.Millisecond) }
                     }
                 """
                     .trimIndent(),
@@ -131,16 +133,31 @@ class GoContextDebugTest : BasePlatformTestCase() {
                             reused,
                         )
                         .build()
-                environment.setHeadless()
+                if (element == packagePsi) environment.setHeadless()
                 session = null
                 output.setLength(0)
+                Files.deleteIfExists(runtime.resolve("finish"))
                 runner.execute(environment)
+                if (element == file) {
+                    PlatformTestUtil.waitWithEventsDispatching(
+                        "Debug console did not display live stdout and stderr",
+                        {
+                            val console = session?.consoleView as? com.intellij.execution.impl.ConsoleViewImpl
+                            console?.component
+                            val text = console?.editor?.document?.text.orEmpty()
+                            text.contains("stderr ready") && text.contains("whole package|two words")
+                        },
+                        15,
+                    )
+                }
+                Files.createFile(runtime.resolve("finish"))
                 PlatformTestUtil.waitWithEventsDispatching(
                     "Context debug did not finish",
                     { session?.debugProcess?.processHandler?.isProcessTerminated == true },
                     60,
                 )
                 val active = session!!
+                assertEquals(configuration.name, active.sessionName)
                 assertEquals(output.toString(), 0, active.debugProcess.processHandler.exitCode)
                 assertTrue(
                     output.toString(),

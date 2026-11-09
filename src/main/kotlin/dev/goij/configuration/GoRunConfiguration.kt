@@ -5,7 +5,6 @@ import com.intellij.execution.Executor
 import com.intellij.execution.configuration.EnvironmentVariablesDialog
 import com.intellij.execution.configuration.EnvironmentVariablesTextFieldWithBrowseButton
 import com.intellij.execution.configurations.ConfigurationFactory
-import com.intellij.execution.configurations.RunConfiguration
 import com.intellij.execution.configurations.RunConfigurationBase
 import com.intellij.execution.configurations.RunProfileState
 import com.intellij.execution.configurations.RuntimeConfigurationError
@@ -18,6 +17,7 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.options.SettingsEditor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
+import com.intellij.ui.DocumentAdapter
 import com.intellij.util.execution.ParametersListUtil
 import dev.goij.debugger.GoDebugInput
 import dev.goij.debugger.GoDebugProcessHandler
@@ -32,17 +32,18 @@ import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JPanel
 import javax.swing.JTextField
+import javax.swing.event.DocumentEvent
 import org.jdom.Element
 
 class GoRunConfiguration(project: Project, factory: ConfigurationFactory, name: String) :
     RunConfigurationBase<Any>(project, factory, name) {
-    var packageDirectory = ""
+    var packageDirectory = if (project.isDefault) "" else project.basePath.orEmpty()
     var workingDirectory = ""
     var programArguments = ""
     var buildFlags = ""
     var environment: Map<String, String> = emptyMap()
 
-    override fun getConfigurationEditor(): SettingsEditor<out RunConfiguration> =
+    override fun getConfigurationEditor(): SettingsEditor<GoRunConfiguration> =
         GoConfigurationEditor(project)
 
     override fun checkConfiguration() {
@@ -167,6 +168,35 @@ private class GoConfigurationEditor(project: Project) : SettingsEditor<GoRunConf
             override fun createDialog() = object : EnvironmentVariablesDialog(this, true) {}
         }
 
+    private var followsPackage = true
+    private var updatingWorkingDirectory = false
+
+    init {
+        directory.document.addDocumentListener(
+            object : DocumentAdapter() {
+                override fun textChanged(event: DocumentEvent) {
+                    if (followsPackage) showWorkingDirectory(directory.text)
+                }
+            }
+        )
+        workingDirectory.document.addDocumentListener(
+            object : DocumentAdapter() {
+                override fun textChanged(event: DocumentEvent) {
+                    if (!updatingWorkingDirectory) followsPackage = workingDirectory.text.isBlank()
+                }
+            }
+        )
+    }
+
+    private fun showWorkingDirectory(path: String) {
+        updatingWorkingDirectory = true
+        try {
+            workingDirectory.text = path
+        } finally {
+            updatingWorkingDirectory = false
+        }
+    }
+
     override fun createEditor(): JComponent =
         JPanel(GridLayout(0, 2, 8, 8)).apply {
             add(JLabel("Main-package directory:"))
@@ -183,7 +213,8 @@ private class GoConfigurationEditor(project: Project) : SettingsEditor<GoRunConf
 
     override fun resetEditorFrom(configuration: GoRunConfiguration) {
         directory.text = configuration.packageDirectory
-        workingDirectory.text = configuration.workingDirectory
+        followsPackage = configuration.workingDirectory.isBlank()
+        showWorkingDirectory(configuration.workingDirectory.ifBlank { directory.text })
         arguments.text = configuration.programArguments
         flags.text = configuration.buildFlags
         environment.envs = configuration.environment
@@ -192,7 +223,7 @@ private class GoConfigurationEditor(project: Project) : SettingsEditor<GoRunConf
 
     override fun applyEditorTo(configuration: GoRunConfiguration) {
         configuration.packageDirectory = directory.text.trim()
-        configuration.workingDirectory = workingDirectory.text.trim()
+        configuration.workingDirectory = if (followsPackage) "" else workingDirectory.text.trim()
         configuration.programArguments = arguments.text
         configuration.buildFlags = flags.text
         configuration.environment = environment.envs.toMap()

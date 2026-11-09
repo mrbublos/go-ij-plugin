@@ -27,6 +27,7 @@ class GoDebugRunner : GenericProgramRunner<RunnerSettings>() {
                 }
             )
             .environment(environment)
+            .sessionName(environment.runProfile.name)
             .showTab(!environment.isHeadless)
             .startSession()
             .runContentDescriptor

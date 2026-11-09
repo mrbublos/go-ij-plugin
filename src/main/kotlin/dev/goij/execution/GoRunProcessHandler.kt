@@ -2,6 +2,7 @@ package dev.goij.execution
 
 import com.intellij.execution.process.ProcessHandler
 import com.intellij.execution.process.ProcessOutputTypes
+import com.intellij.execution.process.ProcessTerminatedListener
 import dev.goij.toolchain.GoTools
 import java.io.OutputStream
 import java.nio.file.Files
@@ -24,6 +25,10 @@ class GoRunProcessHandler(private val input: GoRunInput) : ProcessHandler() {
     private val processLock = Any()
     private var child: Process? = null
 
+    init {
+        ProcessTerminatedListener.attach(this)
+    }
+
     override fun startNotify() {
         super.startNotify()
         if (started.compareAndSet(false, true)) Thread.ofVirtual().name("go-run").start { run() }
@@ -33,6 +38,7 @@ class GoRunProcessHandler(private val input: GoRunInput) : ProcessHandler() {
         var temporary: Path? = null
         var exit = 1
         try {
+            notifyTextAvailable("Starting Go application…\n", ProcessOutputTypes.SYSTEM)
             val go = GoTools.findGo(input.goExecutable)
             val directory = Path.of(input.packageDirectory)
             require(Files.isDirectory(directory)) {
@@ -50,6 +56,7 @@ class GoRunProcessHandler(private val input: GoRunInput) : ProcessHandler() {
             GoTools.requireMainPackage(validation, packageName.toString(), directory)
             temporary = Files.createTempDirectory("go-ij-run-")
             val executable = temporary.resolve("application")
+            notifyTextAvailable("Building Go package in $directory…\n", ProcessOutputTypes.SYSTEM)
             val build =
                 execute(
                     listOf(go, "build") +
@@ -59,13 +66,17 @@ class GoRunProcessHandler(private val input: GoRunInput) : ProcessHandler() {
                     ::output,
                 )
             exit =
-                if (build == 0 && !stopped.get())
+                if (build == 0 && !stopped.get()) {
+                    notifyTextAvailable(
+                        "Build finished. Launching application…\n",
+                        ProcessOutputTypes.SYSTEM,
+                    )
                     execute(
                         listOf(executable.toString()) + input.programArguments,
                         workingDirectory,
                         ::output,
                     )
-                else build
+                } else build
         } catch (error: Exception) {
             if (!stopped.get()) notifyTextAvailable("${error.message}\n", ProcessOutputTypes.STDERR)
         } finally {
