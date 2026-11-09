@@ -1,5 +1,6 @@
 package dev.goij.debugger
 
+import com.intellij.execution.filters.TextConsoleBuilderFactory
 import com.intellij.execution.process.ProcessHandler
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.fileTypes.PlainTextFileType
@@ -95,6 +96,11 @@ class GoDebugProcess(
             override fun getFileType() = PlainTextFileType.INSTANCE
 
             override fun isEvaluateExpressionFieldEnabled() = false
+        }
+
+    override fun createConsole() =
+        TextConsoleBuilderFactory.getInstance().createBuilder(session.project).console.also {
+            it.attachToProcess(handler)
         }
 
     override fun doGetProcessHandler(): ProcessHandler = handler

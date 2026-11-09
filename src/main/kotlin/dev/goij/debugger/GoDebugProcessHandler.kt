@@ -193,6 +193,7 @@ class GoDebugProcessHandler(
                     mapOf(
                         "request" to "launch",
                         "mode" to "exec",
+                        "outputMode" to "remote",
                         "program" to executable.toString(),
                         "dlvCwd" to Path.of(input.packageDirectory).toRealPath().toString(),
                         "cwd" to input.workingDirectory,

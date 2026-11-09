@@ -23,7 +23,7 @@ Debug requires both tools.
 
 ## Run a package
 
-Run and Debug print a startup message before checking the toolchain. The Run console also shows which package is being built, when the application is launching, and the final exit code.
+Run and Debug print a startup message before checking the toolchain. During debugging, the Debug tool window’s Console tab streams application stdout and stderr. The Run console also shows which package is being built, when the application is launching, and the final exit code.
 
 In **Run > Edit Configurations**, add **Go Application**:
 

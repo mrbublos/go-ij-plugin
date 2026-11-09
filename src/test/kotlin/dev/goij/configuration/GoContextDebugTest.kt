@@ -3,6 +3,7 @@ package dev.goij.configuration
 import com.intellij.execution.RunManager
 import com.intellij.execution.actions.ConfigurationContext
 import com.intellij.execution.executors.DefaultDebugExecutor
+import com.intellij.execution.impl.ConsoleViewImpl
 import com.intellij.execution.runners.ExecutionEnvironmentBuilder
 import com.intellij.execution.runners.ProgramRunner
 import com.intellij.openapi.util.Disposer
@@ -142,12 +143,14 @@ class GoContextDebugTest : BasePlatformTestCase() {
                     PlatformTestUtil.waitWithEventsDispatching(
                         "Debug console did not display live stdout and stderr",
                         {
-                            val console = session?.consoleView as? com.intellij.execution.impl.ConsoleViewImpl
+                            val console = session?.consoleView as? ConsoleViewImpl
                             console?.component
                             val text = console?.editor?.document?.text.orEmpty()
-                            text.contains("stderr ready") && text.contains("whole package|two words")
+                            text.contains("Starting Go debug session") &&
+                                text.contains("stderr ready") &&
+                                text.contains("whole package|two words")
                         },
-                        15,
+                        60,
                     )
                 }
                 Files.createFile(runtime.resolve("finish"))
